@@ -1,3 +1,40 @@
+run:-
+    %consult('ANLLoopAnswer'),
+    % SAT
+    prove('ANLLoopProblems/KRS005-1.p',1),
+    prove('ANLLoopProblems/NLP043-1.p',1),
+    prove('ANLLoopProblems/SET777-1.p',1),
+    prove('ANLLoopProblems/SWV010-1.p',1),
+    prove('ANLLoopProblems/SYN059-1.p',1),
+    % EASY
+    prove('ANLLoopProblems/PUZ001-1.p',60),
+    prove('ANLLoopProblems/PUZ011-1.p',60),
+    prove('ANLLoopProblems/SYN003-1.006.p',60),
+    prove('ANLLoopProblems/SYN009-3.p',60),
+    prove('ANLLoopProblems/SYN068-1.p',60),
+    % MED
+    prove('ANLLoopProblems/COM003-2.p',60),
+    prove('ANLLoopProblems/KRS002-1.p',60).
+    /* prove('ANLLoopProblems/MGT036-3.p',60),
+    prove('ANLLoopProblems/SWV292-2.p',60),
+    prove('ANLLoopProblems/SYN328-1.p',60),
+    % HARD
+    prove('ANLLoopProblems/ALG002-1.p',60),
+    prove('ANLLoopProblems/GRP001-5.p',60),
+    prove('ANLLoopProblems/FLD001-3.p',60),
+    prove('ANLLoopProblems/LCL064-1.p',60),
+    prove('ANLLoopProblems/PUZ031-1.p',60). */
+    % EQUALITY
+%    prove('ANLLoopProblems/COM004-1.p',60),
+   % prove('ANLLoopProblems/COM004-1+Eq.p',60),
+%    prove('ANLLoopProblems/LCL171-3.p',60),
+   % prove('ANLLoopProblems/LCL171-3+Eq.p',60),
+%    prove('ANLLoopProblems/PUZ020-1.p',60),
+   % prove('ANLLoopProblems/PUZ020-1+Eq.p',60),
+%    prove('ANLLoopProblems/SET845-2.p',60),
+   % prove('ANLLoopProblems/SET845-2+Eq.p',60),
+%    prove('ANLLoopProblems/SWV307-2.p',60),
+   % prove('ANLLoopProblems/SWV307-2+Eq.p',60).
 %==================================================================================================
 %----General ANL Loop style theorem prover. This is the overall control code, non-specific to a 
 %----particular calculus
@@ -113,22 +150,29 @@ atp_loop([ChosenClause|RestOfToBeUsed],LoopsSoFar,FinalLoops,SZSResult,Refutatio
     add_to_can_be_used(ChosenClause),
 %----Do all possible inferences
     findall(NewClause,do_inference(ChosenClause,NewClause),NewClauses),
+%write("New clauses: "), write(NewClauses),nl,
 % do tautology deletion, introspective subsumption
-    %tautology_deletion(NewClauses, NoTautologyNewClauses),
+    tautology_deletion(NewClauses, NoTautologyNewClauses),
+%write("No taut: "),write(NoTautologyNewClauses),nl,
     %introspective_subsumption(NoTautologyNewClauses, IntrospectivelySubsumedNewClauses),
 % do forward subsumption on the inferred clauses
     %forward_subsumption(IntrospectivelySubsumedNewClauses, RestOfToBeUsed, ForwardSubsumedNewClauses),
 % do backward subsumption on the inferred clauses
     %backward_subsumption(ForwardSubsumedNewClauses, RestOfToBeUsed, BackwardSubsumedToBeUsed),
 %write('----The inferred clauses are'),write(NewClauses),nl,
-    weigh_clauses(NewClauses, WeighedNewClauses),
-    %weigh_clauses(ForwardSubsumedNewClauses, WeighedNewClauses),
+    %weigh_clauses(NoTautologyNewClauses, WeighedNewClauses),
+%write("No taut weighed: "),write(WeighedNewClauses),nl,
+    %weigh_clauses(NewClauses, WeighedNewClauses),
+    weigh_clauses(NoTautologyNewClauses, WeighedNewClauses),
+%    write("weighed!"),nl,
 %write('----The weighed inferred clauses are '), write(WeighedNewClauses),nl,
 %----Create new to_be_used list and loop. Breadth first search
     append(RestOfToBeUsed, WeighedNewClauses, NewToBeUsed),
+%    write("appended!"),nl,
     %append(BackwardSubsumedToBeUsed,WeighedNewClauses,NewToBeUsed),
 %write('----New ToBeUsed is'), write(NewToBeUsed),nl,
     sort(3, @=<, NewToBeUsed, WeighedNewToBeUsed),
+%    write("sorted!"),nl,
 %----Go round the loop. Note this should be tail recursion optimized. If it's not then buy a 
 %----better Prolog or place a cut here.
     OneMoreLoop is LoopsSoFar + 1,
@@ -219,23 +263,48 @@ opposite_sign_literal(Atom,~ Atom).
 % must be EXACTLY opposite literals
 % use ==, not = 
 % == is identical, = is unifiably identical
-% TODO: implement
-tautology_deletion([HeadClause|TailClauses], [NoTautologyHeadClauses|NoTautologyTailClauses]):-
+
+% 3 versions of tautology_deletion
+    % 1st: empty list
+    % 2nd: head clause is a tautology
+    % 3rd: head clause is not a tautology
+tautology_deletion([],[]).
+tautology_deletion([HeadClause|TailClauses], TailClauses):-
+    is_tautology(HeadClause),
+    tautology_deletion(TailClauses, TailClauses),
+    !.
+tautology_deletion([HeadClause|TailClauses], [HeadClause|TailClauses]):-
+    tautology_deletion(TailClauses, TailClauses).
+
+is_tautology(cnf(_,Literals,_)):-
+    %write("Literals:"), write(Literals), nl,
+    select(Literal, Literals, RestOfLiterals),
+    %write("selected literal: "), write(Literal), nl,
+    %write("Rest of literals: "), write(RestOfLiterals),nl,
+    opposite_sign_literal(Literal, NegatedLiteral),
+    %write("Opposite sign literal: "), write(NegatedLiteral), nl,
+    select(OtherLiteral, RestOfLiterals,_),
+    %write("Other literal: "), write(OtherLiteral), nl,
+    OtherLiteral == NegatedLiteral.
+
+
+/* tautology_deletion([HeadClause|TailClauses], [NoTautologyHeadClause|NoTautologyTailClauses]):-
     % for each clause, check if there exists a tautology
-    tautology_deletion(HeadClause, NoTautologyHeadClause),
-    tautology_deletion(TailClauses, NoTautologyTailClauses).
+    tautology_deletion_on_clause(HeadClause, NoTautologyHeadClause),
+    tautology_deletion(TailClauses, NoTautologyTailClauses),
+    !.
+
+tautology_deletion([], []).
     
-tautology_deletion(cnf(Name,Literals,Weight), []):-
+tautology_deletion_on_clause(cnf(_,Literals,_), cnf(_,[],0)):-
     % nearly same as factoring (but for inverse), make sure to check == a
     select(Literal, Literals, RestOfLiterals),
     opposite_sign_literal(Literal, NegatedLiteral),
-    write(NegatedLiteral),
-    select(NegatedLiteral, RestOfLiterals, _),
-    compare(==, Literal, NegatedLiteral),
-    !.
+    select(OtherLiteral, RestOfLiterals,_),
+    OtherLiteral == NegatedLiteral,!. */
 
 % no deletion for a given clause
-tautology_deletion(cnf(Name,Literals,Weight), cnf(Name, Literals, Weight)).
+tautology_deletion_on_clause(cnf(Name,Literals,Weight), cnf(Name, Literals, Weight)).
 
 
 %==================================================================================================
