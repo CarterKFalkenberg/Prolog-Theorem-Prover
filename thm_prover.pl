@@ -113,15 +113,19 @@ atp_loop([ChosenClause|RestOfToBeUsed],LoopsSoFar,FinalLoops,SZSResult,Refutatio
     add_to_can_be_used(ChosenClause),
 %----Do all possible inferences
     findall(NewClause,do_inference(ChosenClause,NewClause),NewClauses),
+%write("New clauses: "), write(NewClauses),nl,
 % do tautology deletion, introspective subsumption
-    %tautology_deletion(NewClauses, NoTautologyNewClauses),
+    tautology_deletion(NewClauses, NoTautologyNewClauses),
+%write("No taut: "),write(NoTautologyNewClauses),nl,
     %introspective_subsumption(NoTautologyNewClauses, IntrospectivelySubsumedNewClauses),
 % do forward subsumption on the inferred clauses
     %forward_subsumption(IntrospectivelySubsumedNewClauses, RestOfToBeUsed, ForwardSubsumedNewClauses),
 % do backward subsumption on the inferred clauses
     %backward_subsumption(ForwardSubsumedNewClauses, RestOfToBeUsed, BackwardSubsumedToBeUsed),
 %write('----The inferred clauses are'),write(NewClauses),nl,
-    weigh_clauses(NewClauses, WeighedNewClauses),
+    weigh_clauses(NoTautologyNewClauses, WeighedNewClauses),
+%write("No taut weighed: "),write(WeighedNewClauses),nl,
+    %weigh_clauses(NewClauses, WeighedNewClauses),
     %weigh_clauses(ForwardSubsumedNewClauses, WeighedNewClauses),
 %write('----The weighed inferred clauses are '), write(WeighedNewClauses),nl,
 %----Create new to_be_used list and loop. Breadth first search
@@ -219,23 +223,26 @@ opposite_sign_literal(Atom,~ Atom).
 % must be EXACTLY opposite literals
 % use ==, not = 
 % == is identical, = is unifiably identical
-% TODO: implement
-tautology_deletion([HeadClause|TailClauses], [NoTautologyHeadClauses|NoTautologyTailClauses]):-
+
+% append([X | Y], Z, [X | W]) :- append(Y, Z, W).
+
+tautology_deletion([HeadClause|TailClauses], [NoTautologyHeadClause|NoTautologyTailClauses]):-
     % for each clause, check if there exists a tautology
-    tautology_deletion(HeadClause, NoTautologyHeadClause),
-    tautology_deletion(TailClauses, NoTautologyTailClauses).
+    tautology_deletion_on_clause(HeadClause, NoTautologyHeadClause),
+    tautology_deletion(TailClauses, NoTautologyTailClauses),
+    !.
+
+tautology_deletion([], []).
     
-tautology_deletion(cnf(Name,Literals,Weight), []):-
+tautology_deletion_on_clause(cnf(_,Literals,_), cnf(_,[],0)):-
     % nearly same as factoring (but for inverse), make sure to check == a
     select(Literal, Literals, RestOfLiterals),
     opposite_sign_literal(Literal, NegatedLiteral),
-    write(NegatedLiteral),
-    select(NegatedLiteral, RestOfLiterals, _),
-    compare(==, Literal, NegatedLiteral),
-    !.
+    select(OtherLiteral, RestOfLiterals,_),
+    OtherLiteral == NegatedLiteral,!.
 
 % no deletion for a given clause
-tautology_deletion(cnf(Name,Literals,Weight), cnf(Name, Literals, Weight)).
+tautology_deletion_on_clause(cnf(Name,Literals,Weight), cnf(Name, Literals, Weight)).
 
 
 %==================================================================================================
