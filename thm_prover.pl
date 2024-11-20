@@ -15,6 +15,7 @@ run:-
     % MED
     prove('ANLLoopProblems/COM003-2.p',60),
     prove('ANLLoopProblems/KRS002-1.p',60).
+    % all above are currently solved with tautology + factoring
     /* prove('ANLLoopProblems/MGT036-3.p',60),
     prove('ANLLoopProblems/SWV292-2.p',60),
     prove('ANLLoopProblems/SYN328-1.p',60),
@@ -56,6 +57,7 @@ run:-
 %--------------------------------------------------------------------------------------------------
 :-dynamic cnf/3.
 :-dynamic cnf_old/3.
+:-nb_setval(next_id, 1).
 %==================================================================================================
 %----Overall control of ANL loop
 %==================================================================================================
@@ -102,9 +104,19 @@ swi_error_to_SZS(error(resource_error(_),_),'ResourceOut').
 initialise_deduction(FileName,ProblemClauses):-
     retractall(cnf(_,_,_)),
     read_cnfs_from_file(FileName,ReadClauses),
-    weigh_clauses(ReadClauses, WeighedClauses),
+    % RENAME CLAUSES to format: [id, original_name, left_parent, right_parent]. 
+    rename_clauses(ReadClauses, RenamedClauses),
+    weigh_clauses(RenamedClauses, WeighedClauses),
     sort(3, @=<, WeighedClauses, ProblemClauses),
 write('Problem Clauses (sorted by weight):'), write(ProblemClauses),nl.
+%--------------------------------------------------------------------------------------------------
+rename_clauses([],[]).
+rename_clauses([cnf(Name, Literals, Weight)|TailClauses], [cnf(NewName, Literals, Weight)|RenamedTailClauses]):-
+    nb_getval(next_id, ID),
+    rename(Name, ID, NewName),
+    increment_id(),
+    rename_clauses(TailClauses, RenamedTailClauses).
+rename(Name, ID, [ID, Name, "", ""]).
 %--------------------------------------------------------------------------------------------------
 weigh_clauses([], []).
 
@@ -301,10 +313,10 @@ tautology_deletion_on_clause(cnf(_,Literals,_), cnf(_,[],0)):-
     select(Literal, Literals, RestOfLiterals),
     opposite_sign_literal(Literal, NegatedLiteral),
     select(OtherLiteral, RestOfLiterals,_),
-    OtherLiteral == NegatedLiteral,!. */
+    OtherLiteral == NegatedLiteral,!. 
 
 % no deletion for a given clause
-tautology_deletion_on_clause(cnf(Name,Literals,Weight), cnf(Name, Literals, Weight)).
+tautology_deletion_on_clause(cnf(Name,Literals,Weight), cnf(Name, Literals, Weight)).*/
 
 
 %==================================================================================================
@@ -378,8 +390,8 @@ database_backward_subsumption(SubsumingClauses):-
 %----If not subsumed then backtrack for the next one
     cnf_subsumed(cnf(Name,SubsumedLiterals,Weight),SubsumingClause),
 %----If subsumed then retract and backtrack for the next one
-    % potentially assert old_cnf(Name, SubsumedLiterals, Weight)
-    %assert(cnf_old(Name, SubsumedLiterals, Weight))
+    % keep track of retracted clauses for the proof
+    assertz(cnf_old(Name, SubsumedLiterals, Weight)),
     retract(cnf(Name,SubsumedLiterals,Weight)),
     fail.
 
@@ -514,3 +526,8 @@ tptp_path_name(FileName,PathName):-
     tptp_directory(Directory),
     atomic_list_concat([Directory,'/Problems/',Domain,'/',FullFileName],PathName).
 %--------------------------------------------------------------------------------------------------
+
+increment_id():-
+    nb_getval(next_id, V),
+    Z is V + 1,
+    nb_setval(next_id, Z).
