@@ -15,7 +15,7 @@ run:-
     % MED
     prove('ANLLoopProblems/COM003-2.p',60),
     prove('ANLLoopProblems/KRS002-1.p',60).
-    % all above are currently solved with tautology + factoring
+    % all above are currently solved with tautology + factoring + proof output
     /* prove('ANLLoopProblems/MGT036-3.p',60),
     prove('ANLLoopProblems/SWV292-2.p',60),
     prove('ANLLoopProblems/SYN328-1.p',60),
@@ -88,7 +88,9 @@ prove(FileName,TimeLimit):-
     ( SZSResult == 'Unsatisfiable'
    -> ( write('% SZS output start Refutation for '),
         write(FileName),nl,
-        write(Refutation),nl,
+        writeln("Format is cnf/cnf_old([ID, OG_name, parentID1, parentID2], terms,weight)"),
+        %write(Refutation),nl,
+        print_list(Refutation),
         write('% SZS output end Refutation for '),
         write(FileName),nl
       ) ; 
@@ -97,6 +99,12 @@ prove(FileName,TimeLimit):-
     write('%--------------------------------------------------------'),nl,
     !.
 %--------------------------------------------------------------------------------------------------
+print_list([]):-
+    !.
+print_list([Head | Tail]):-
+    writeln(Head),
+    print_list(Tail).
+%--------------------------------------------------------------------------------------------------
 swi_error_to_SZS(time_limit_exceeded,'Timeout').
 
 swi_error_to_SZS(error(resource_error(_),_),'ResourceOut').
@@ -104,8 +112,10 @@ swi_error_to_SZS(error(resource_error(_),_),'ResourceOut').
 initialise_deduction(FileName,ProblemClauses):-
     retractall(cnf(_,_,_)),
     read_cnfs_from_file(FileName,ReadClauses),
-    % RENAME CLAUSES to format: [id, original_name, left_parent, right_parent]. 
+    % RENAME CLAUSES to format: [id, original_name, left_parent, right_parent]. First reset global id to 1 if needed
+    nb_setval(next_id, 1),
     rename_clauses(ReadClauses, RenamedClauses),
+    %write(RenamedClauses),
     weigh_clauses(RenamedClauses, WeighedClauses),
     sort(3, @=<, WeighedClauses, ProblemClauses),
 write('Problem Clauses (sorted by weight):'), write(ProblemClauses),nl.
@@ -117,6 +127,14 @@ rename_clauses([cnf(Name, Literals, Weight)|TailClauses], [cnf(NewName, Literals
     increment_id(),
     rename_clauses(TailClauses, RenamedTailClauses).
 rename(Name, ID, [ID, Name, "", ""]).
+%--------------------------------------------------------------------------------------------------
+name_resolvant_clause([ID1, _, _, _], [ID2, _, _, _], [ResolvantID, "resolvant", ID1, ID2]):-
+    nb_getval(next_id, ResolvantID),
+    increment_id().
+%--------------------------------------------------------------------------------------------------
+name_factored_clause([ParentID, _, _, _], [FactoredID, "factor", ParentID, ""]):-
+    nb_getval(next_id, FactoredID),
+    increment_id().
 %--------------------------------------------------------------------------------------------------
 weigh_clauses([], []).
 
@@ -146,9 +164,76 @@ term_flatten(Atom, [Symbol | FlatArguments]):-
     Atom =.. [Symbol|Arguments],
     term_flatten(Arguments, FlatArguments).
 %--------------------------------------------------------------------------------------------------
+%getRefutation(ToBeAdded, Added, Refutation, NewRefutation)
+
+get_refutation([], _, Refutation, Refutation):-
+    %predsort(compare_by_first_arg, Refutation, SortedRefutation),
+    !.
+get_refutation([[ID, _, PID1, PID2]|Tail], Added, Refutation, [Clause|NewRefutation]):-
+    get_clause_from_id(ID, Clause),
+    ((number(PID1), \+ member(PID1, Added)) -> (   
+        get_clause_from_id(PID1, PID1Clause),
+        get_name_from_clause(PID1Clause, PID1Name),
+        append([PID1Name], Tail, UpdatedTail1)
+    );(UpdatedTail1 = Tail)
+    ),
+    ((number(PID2), \+ member(PID2, Added)) -> (  
+        get_clause_from_id(PID2, PID2Clause),
+        get_name_from_clause(PID2Clause, PID2Name),
+        append([PID2Name], UpdatedTail1, UpdatedTail2)
+    );(UpdatedTail2 = UpdatedTail1)
+    ),
+    get_refutation(UpdatedTail2, Added, Refutation, NewRefutation).
+
+
+
+
+
+/* get_refutation([Head|Tail], _, Refutation, Refutation):-
+    writeln("HEAD:"),writeln(Head),nl,nl. */
+/*get_refutation([[ID, _, PID1, PID2]|Tail], Added, Refutation, [Clause|NewRefutation]):-
+    write("Getting refutation again").
+get_refutation([[ID, _, PID1, PID2]|Tail], Added, Refutation, Refutation):-
+    write("Getting refutation again").
+    get_clause_from_id(ID, Clause),
+    ((number(PID1); \+ member(PID1, Added)) -> (   
+        get_clause_from_id(PID1, PID1Clause),
+        get_name_from_clause(PID1Clause, PID1Name),
+        append(PID1Name, Tail, UpdatedTail1)
+    );(UpdatedTail1 is Tail)
+    ),
+    ((number(PID2); \+ member(PID2, Added)) -> (   
+        get_clause_from_id(PID2, PID2Clause),
+        get_name_from_clause(PID2Clause, PID2Name),
+        append(PID2Name, UpdatedTail1, UpdatedTail2)
+    );(UpdatedTail2 is UpdatedTail1)
+    ),
+    get_refutation(UpdatedTail2, [ID | Added], Refutation, NewRefutation).
+*/
+% CNF
+get_clause_from_id(ID, cnf([ID, A, B, C], D, E)):-
+    cnf([ID, A, B, C], D, E),
+    !.
+
+% CNF_OLD
+get_clause_from_id(ID, cnf_old([ID, A, B, C], D, E)):-
+    cnf_old([ID, A, B, C], D, E).
+
+% CNF
+get_name_from_clause(cnf(Name, _, _), Name).
+
+% CNF_OLD
+get_name_from_clause(cnf_old(Name, _, _), Name).
+%--------------------------------------------------------------------------------------------------
 %----Test if a proof has been found
-atp_loop(ToBeUsed,Loops,Loops,'Unsatisfiable',none):-
-    member(cnf(_,[],_),ToBeUsed),
+atp_loop(ToBeUsed,Loops,Loops,'Unsatisfiable',Refutation):-
+    member(cnf(FalseClauseName,[],_),ToBeUsed),
+    add_to_can_be_used(cnf(FalseClauseName, [], weight)),
+    % false clause name is empty!
+    get_refutation([FalseClauseName], [], [], UnsRefutation),
+    maplist(n_pricep, UnsRefutation, UnsIDToClause),
+    keysort(UnsIDToClause, SortedIDToClause),
+    maplist(pair_value, SortedIDToClause, Refutation),
     !.
 
 %----Test if no proof can be found
@@ -199,7 +284,7 @@ add_to_can_be_used(Clause):-
 %==================================================================================================
 %--------------------------------------------------------------------------------------------------
 %----Binary resolution inference
-do_inference(cnf(ChosenName,ChosenClauseLiterals,_),cnf(r(ChosenName,CBUName),ResolvantLiterals,weight)):-
+do_inference(cnf(ChosenName,ChosenClauseLiterals,_),cnf(ResolvantName,ResolvantLiterals,weight)):-
 %----Select literal from first parent clause
     select(SelectedLiteral,ChosenClauseLiterals,RestOfChosenClauseLiterals),
     nothing_bigger(SelectedLiteral, RestOfChosenClauseLiterals),
@@ -210,6 +295,9 @@ do_inference(cnf(ChosenName,ChosenClauseLiterals,_),cnf(r(ChosenName,CBUName),Re
 %----Select literal of opposite sign that unifies, from the second parent
     select(NegatedSelectedLiteral,CBUClauseLiterals,RestOfCBUClauseLiterals),
     nothing_bigger(NegatedSelectedLiteral, RestOfCBUClauseLiterals),
+%----Get name of resolvant
+    name_resolvant_clause(ChosenName, CBUName, ResolvantName),
+%write("ResolvantName"),write(ResolvantName),nl,
 %----Collect the leftover literals
     append(RestOfChosenClauseLiterals,RestOfCBUClauseLiterals,ResolvantLiterals).
 
@@ -225,7 +313,7 @@ do_inference(cnf(ChosenName,ChosenClauseLiterals,_),cnf(r(ChosenName,CBUName),Re
 
 
 % Factoring, only checking later in the list 
-do_inference(cnf(ChosenName,ChosenClauseLiterals,_),cnf(f(ChosenName),FactoredLiterals,weight)):-
+do_inference(cnf(ChosenName,ChosenClauseLiterals,_),cnf(FactoredName,FactoredLiterals,weight)):-
     % get FactoredLiteral and its index 
     nth0(FactoredLiteralIndex, ChosenClauseLiterals, FactoredLiteral, FactoredLiterals),
         
@@ -236,7 +324,10 @@ do_inference(cnf(ChosenName,ChosenClauseLiterals,_),cnf(f(ChosenName),FactoredLi
     nothing_bigger(FactoredLiteral, FactoredLiterals),
 
     % check if there is a copy somewhere in the sublist. If so, factor (i.e. return true)
-    member(FactoredLiteral, Sublist).
+    member(FactoredLiteral, Sublist),
+
+    % get factored clause name
+    name_factored_clause(ChosenName, FactoredName).
     %write("\t\tChosen clause literals:"), write(ChosenClauseLiterals), nl,
     %write("\t\tFactored to be:"), write(FactoredLiterals),nl.
 
@@ -531,3 +622,10 @@ increment_id():-
     nb_getval(next_id, V),
     Z is V + 1,
     nb_setval(next_id, Z).
+
+n_pricep(Clause, ID-Clause) :-
+   get_name_from_clause(Clause, [ID | _]).
+
+pair_value(_-V,V).
+
+
