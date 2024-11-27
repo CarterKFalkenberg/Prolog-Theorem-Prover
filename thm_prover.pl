@@ -90,7 +90,7 @@ prove(FileName,TimeLimit):-
         write(FileName),nl,
         writeln("Format is cnf/cnf_old([ID, OG_name, parentID1, parentID2], terms,weight)"),
         %write(Refutation),nl,
-        print_list(Refutation),
+        print_clauses_from_ids(Refutation),
         write('% SZS output end Refutation for '),
         write(FileName),nl
       ) ; 
@@ -104,6 +104,13 @@ print_list([]):-
 print_list([Head | Tail]):-
     writeln(Head),
     print_list(Tail).
+%--------------------------------------------------------------------------------------------------
+print_clauses_from_ids([]):-
+    !.
+print_clauses_from_ids([ID | Tail]):-
+    get_clause_from_id(ID, Clause),
+    writeln(Clause),
+    print_clauses_from_ids(Tail). 
 %--------------------------------------------------------------------------------------------------
 swi_error_to_SZS(time_limit_exceeded,'Timeout').
 
@@ -167,9 +174,8 @@ term_flatten(Atom, [Symbol | FlatArguments]):-
 %getRefutation(ToBeAdded, Added, Refutation, NewRefutation)
 
 get_refutation([], _, Refutation, Refutation):-
-    %predsort(compare_by_first_arg, Refutation, SortedRefutation),
     !.
-get_refutation([[ID, _, PID1, PID2]|Tail], Added, Refutation, [Clause|NewRefutation]):-
+get_refutation([[ID, _, PID1, PID2]|Tail], Added, Refutation, [ID|NewRefutation]):-
     get_clause_from_id(ID, Clause),
     ((number(PID1), \+ member(PID1, Added)) -> (   
         get_clause_from_id(PID1, PID1Clause),
@@ -183,33 +189,9 @@ get_refutation([[ID, _, PID1, PID2]|Tail], Added, Refutation, [Clause|NewRefutat
         append([PID2Name], UpdatedTail1, UpdatedTail2)
     );(UpdatedTail2 = UpdatedTail1)
     ),
-    get_refutation(UpdatedTail2, Added, Refutation, NewRefutation).
-
-
-
-
-
-/* get_refutation([Head|Tail], _, Refutation, Refutation):-
-    writeln("HEAD:"),writeln(Head),nl,nl. */
-/*get_refutation([[ID, _, PID1, PID2]|Tail], Added, Refutation, [Clause|NewRefutation]):-
-    write("Getting refutation again").
-get_refutation([[ID, _, PID1, PID2]|Tail], Added, Refutation, Refutation):-
-    write("Getting refutation again").
-    get_clause_from_id(ID, Clause),
-    ((number(PID1); \+ member(PID1, Added)) -> (   
-        get_clause_from_id(PID1, PID1Clause),
-        get_name_from_clause(PID1Clause, PID1Name),
-        append(PID1Name, Tail, UpdatedTail1)
-    );(UpdatedTail1 is Tail)
-    ),
-    ((number(PID2); \+ member(PID2, Added)) -> (   
-        get_clause_from_id(PID2, PID2Clause),
-        get_name_from_clause(PID2Clause, PID2Name),
-        append(PID2Name, UpdatedTail1, UpdatedTail2)
-    );(UpdatedTail2 is UpdatedTail1)
-    ),
     get_refutation(UpdatedTail2, [ID | Added], Refutation, NewRefutation).
-*/
+
+
 % CNF
 get_clause_from_id(ID, cnf([ID, A, B, C], D, E)):-
     cnf([ID, A, B, C], D, E),
@@ -228,13 +210,17 @@ get_name_from_clause(cnf_old(Name, _, _), Name).
 %----Test if a proof has been found
 atp_loop(ToBeUsed,Loops,Loops,'Unsatisfiable',Refutation):-
     member(cnf(FalseClauseName,[],_),ToBeUsed),
+    !,
     add_to_can_be_used(cnf(FalseClauseName, [], weight)),
     % false clause name is empty!
     get_refutation([FalseClauseName], [], [], UnsRefutation),
-    maplist(n_pricep, UnsRefutation, UnsIDToClause),
-    keysort(UnsIDToClause, SortedIDToClause),
-    maplist(pair_value, SortedIDToClause, Refutation),
-    !.
+    sort(UnsRefutation, Refutation).
+    %print_list(SortedRefutation),
+    %print_clauses_from_ids(SortedRefutation).
+    %maplist(n_pricep, UnsRefutation, UnsIDToClause).
+    %keysort(UnsIDToClause, SortedIDToClause),
+    %maplist(pair_value, SortedIDToClause, Refutation),
+    
 
 %----Test if no proof can be found
 atp_loop([],Loops,Loops,'Satisfiable',none):-
@@ -623,9 +609,8 @@ increment_id():-
     Z is V + 1,
     nb_setval(next_id, Z).
 
-n_pricep(Clause, ID-Clause) :-
+n_pricep(Clause, ID-Clause):-
    get_name_from_clause(Clause, [ID | _]).
 
 pair_value(_-V,V).
-
 
