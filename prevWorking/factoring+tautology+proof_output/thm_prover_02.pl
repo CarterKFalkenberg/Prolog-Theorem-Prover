@@ -1,7 +1,7 @@
 run:-
     %consult('ANLLoopAnswer'),
     % SAT
-    /* prove('ANLLoopProblems/KRS005-1.p',1),
+    prove('ANLLoopProblems/KRS005-1.p',1),
     prove('ANLLoopProblems/NLP043-1.p',1),
     prove('ANLLoopProblems/SET777-1.p',1),
     prove('ANLLoopProblems/SWV010-1.p',1),
@@ -14,29 +14,28 @@ run:-
     prove('ANLLoopProblems/SYN068-1.p',60),
     % MED
     prove('ANLLoopProblems/COM003-2.p',60),
-    prove('ANLLoopProblems/KRS002-1.p',60),
+    prove('ANLLoopProblems/KRS002-1.p',60).
     % all above are currently solved with tautology + factoring + proof output
-    prove('ANLLoopProblems/MGT036-3.p',60),
-    
+    /* prove('ANLLoopProblems/MGT036-3.p',60),
     prove('ANLLoopProblems/SWV292-2.p',60),
     prove('ANLLoopProblems/SYN328-1.p',60),
     % HARD
-    prove('ANLLoopProblems/ALG002-1.p',5),
-    prove('ANLLoopProblems/GRP001-5.p',5),
-    prove('ANLLoopProblems/FLD001-3.p',5),
-    prove('ANLLoopProblems/LCL064-1.p',5),
-    prove('ANLLoopProblems/PUZ031-1.p',5).  */
+    prove('ANLLoopProblems/ALG002-1.p',60),
+    prove('ANLLoopProblems/GRP001-5.p',60),
+    prove('ANLLoopProblems/FLD001-3.p',60),
+    prove('ANLLoopProblems/LCL064-1.p',60),
+    prove('ANLLoopProblems/PUZ031-1.p',60). */
     % EQUALITY
 %    prove('ANLLoopProblems/COM004-1.p',60),
-   prove('ANLLoopProblems/COM004-1+Eq.p',5),
+   % prove('ANLLoopProblems/COM004-1+Eq.p',60),
 %    prove('ANLLoopProblems/LCL171-3.p',60),
-   prove('ANLLoopProblems/LCL171-3+Eq.p',5),
+   % prove('ANLLoopProblems/LCL171-3+Eq.p',60),
 %    prove('ANLLoopProblems/PUZ020-1.p',60),
-   prove('ANLLoopProblems/PUZ020-1+Eq.p',5),
+   % prove('ANLLoopProblems/PUZ020-1+Eq.p',60),
 %    prove('ANLLoopProblems/SET845-2.p',60),
-   prove('ANLLoopProblems/SET845-2+Eq.p',5),
+   % prove('ANLLoopProblems/SET845-2+Eq.p',60),
 %    prove('ANLLoopProblems/SWV307-2.p',60),
-   prove('ANLLoopProblems/SWV307-2+Eq.p',5).
+   % prove('ANLLoopProblems/SWV307-2+Eq.p',60).
 %==================================================================================================
 %----General ANL Loop style theorem prover. This is the overall control code, non-specific to a 
 %----particular calculus
@@ -69,22 +68,11 @@ prove(FileName,TimeLimit):-
     write('%--------------------------------------------------------'),nl,
     write('% ANLLoop running on '),
     write(FileName),nl,
-    writeln("WARNING: Not using KBO (nothing_bigger/2 commented out)"), 
     initialise_deduction(FileName,InitialisedClauses),
-    introspective_subsumption(InitialisedClauses, NonSubsumedClauses),
-    % for debugging
-    sort(NonSubsumedClauses,Sorted),
-    writeln("Sorted Clauses (Subsumption done): "), print_list(Sorted),
-    % ^^ for debugging
-    initialise_model_resolution(NonSubsumedClauses, FalseClauses),
-    %writeln("WARNING: Did model resolution, but not using model resolution"), 
-    writeln("False Clauses (TBU):"),
-    print_list(FalseClauses),
-    %write("NewInitialisedClauses: "), print_list(NewInitialisedClauses),
     StartTime is cputime,
     call_with_time_limit(
         TimeLimit,
-        catch(atp_loop(FalseClauses,0,Loops,SZSResult,Refutation),SWIError,
+        catch(atp_loop(InitialisedClauses,0,Loops,SZSResult,Refutation),SWIError,
 (swi_error_to_SZS(SWIError,SZSError),SZSResult = SZSError,Refutation = none,Loops = unknown))
     ),
     EndTime is cputime,
@@ -130,7 +118,6 @@ swi_error_to_SZS(error(resource_error(_),_),'ResourceOut').
 %--------------------------------------------------------------------------------------------------
 initialise_deduction(FileName,ProblemClauses):-
     retractall(cnf(_,_,_)),
-    retractall(cnf_old(_,_,_)),
     read_cnfs_from_file(FileName,ReadClauses),
     % RENAME CLAUSES to format: [id, original_name, left_parent, right_parent]. First reset global id to 1 if needed
     nb_setval(next_id, 1),
@@ -140,118 +127,19 @@ initialise_deduction(FileName,ProblemClauses):-
     sort(3, @=<, WeighedClauses, ProblemClauses),
 write('Problem Clauses (sorted by weight):'), write(ProblemClauses),nl.
 %--------------------------------------------------------------------------------------------------
-initialise_model_resolution(NonSubsumedClauses, FalseClauses):-
-    % get # of FALSE clauses using positive interpretation
-    num_false_clauses_positive_interpretation(NonSubsumedClauses, 0, PositiveCount),
-    % get # of FALSE clauses using negative interpretation
-    num_false_clauses_negative_interpretation(NonSubsumedClauses, 0, NegativeCount),
-    % Whichever interpretation is better, add all TRUE clauses in that interpretation to the CBU
-    % The remaining clauses are the FalseClauses (i.e. new TBU)
-    ((PositiveCount > NegativeCount) -> 
-        (model_resolve_positive(NonSubsumedClauses, [], FalseClauses)) 
-        ; (model_resolve_negative(NonSubsumedClauses, [], FalseClauses))
-    ).
-%--------------------------------------------------------------------------------------------------
-model_resolve_positive([], CurrentFalseClauses, CurrentFalseClauses):-
-    !.
-
-model_resolve_positive([Clause | RestOfClauses], CurrentFalseClauses, AllFalseClauses):-
-    true_in_positive_interpretation(Clause, Result),
-    (
-        (Result == "TRUE") ->
-        (   add_to_can_be_used(Clause),
-            model_resolve_positive(RestOfClauses, CurrentFalseClauses, AllFalseClauses)
-        )
-        ; (
-            append([Clause], CurrentFalseClauses, NewCurrentFalseClauses),
-            model_resolve_positive(RestOfClauses, NewCurrentFalseClauses, AllFalseClauses)
-        )
-    ).
-%--------------------------------------------------------------------------------------------------
-model_resolve_negative([], CurrentFalseClauses, CurrentFalseClauses):-
-    !.
-
-model_resolve_negative([Clause | RestOfClauses], CurrentFalseClauses, AllFalseClauses):-
-    true_in_negative_interpretation(Clause, Result),
-    
-    (
-        (Result == "TRUE") ->
-        (   add_to_can_be_used(Clause),
-            model_resolve_negative(RestOfClauses, CurrentFalseClauses, AllFalseClauses)
-        )
-        ; (
-            append([Clause], CurrentFalseClauses, NewCurrentFalseClauses),
-            model_resolve_negative(RestOfClauses, NewCurrentFalseClauses, AllFalseClauses)
-        )
-    ).
-%--------------------------------------------------------------------------------------------------
-num_false_clauses_positive_interpretation([], CurrentCount, CurrentCount):-
-    !.
-num_false_clauses_positive_interpretation([Clause | RestOfClauses], CurrentCount, Count):-
-    true_in_positive_interpretation(Clause, Result),
-    (
-        (Result == "TRUE") -> 
-        (num_false_clauses_positive_interpretation(RestOfClauses, CurrentCount, Count)) 
-        ; (
-            NewCurrentCount is CurrentCount + 1,
-            num_false_clauses_positive_interpretation(RestOfClauses, NewCurrentCount, Count)
-        )
-    ).
-%--------------------------------------------------------------------------------------------------
-num_false_clauses_negative_interpretation([], CurrentCount, CurrentCount):-
-    !.
-num_false_clauses_negative_interpretation([Clause | RestOfClauses], CurrentCount, Count):-
-    true_in_negative_interpretation(Clause, Result),
-    (
-        (Result == "TRUE") -> 
-        (num_false_clauses_negative_interpretation(RestOfClauses, CurrentCount, Count)) 
-        ; (
-            NewCurrentCount is CurrentCount + 1,
-            num_false_clauses_negative_interpretation(RestOfClauses, NewCurrentCount, Count)
-        )
-    ).
-%--------------------------------------------------------------------------------------------------
-true_in_positive_interpretation(cnf(_Name, Literals, _Weight), Result):-
-    true_in_positive_interpretation(Literals, Result).
-
-true_in_positive_interpretation([], "FALSE"):-
-    !.
-true_in_positive_interpretation([Literal | _RestOfLiterals], "TRUE"):-
-    var(Literal), 
-    !.
-true_in_positive_interpretation([Literal | _RestOfLiterals], "TRUE"):-
-    Literal =.. [Symbol|_Arguments],
-    (Symbol \= '~'), 
-    !.
-true_in_positive_interpretation([_Literal | RestOfLiterals], Result):-
-    true_in_positive_interpretation(RestOfLiterals, Result).
-%--------------------------------------------------------------------------------------------------
-true_in_negative_interpretation(cnf(_Name, Literals, _Weight), Result):-
-    true_in_negative_interpretation(Literals, Result).
-    
-true_in_negative_interpretation([], "FALSE"):-
-    !.
-true_in_negative_interpretation([Literal | _RestOfLiterals], "TRUE"):-
-    \+ var(Literal),   
-    Literal =.. [Symbol|_Arguments],
-    (Symbol == '~'), 
-    !.
-true_in_negative_interpretation([_Literal | RestOfLiterals], Result):-
-    true_in_negative_interpretation(RestOfLiterals, Result).
-%--------------------------------------------------------------------------------------------------
 rename_clauses([],[]).
 rename_clauses([cnf(Name, Literals, Weight)|TailClauses], [cnf(NewName, Literals, Weight)|RenamedTailClauses]):-
     nb_getval(next_id, ID),
     rename(Name, ID, NewName),
     increment_id(),
     rename_clauses(TailClauses, RenamedTailClauses).
-rename(Name, ID, [ID, Name, none, none]).
+rename(Name, ID, [ID, Name, "", ""]).
 %--------------------------------------------------------------------------------------------------
 name_resolvant_clause([ID1, _, _, _], [ID2, _, _, _], [ResolvantID, "resolvant", ID1, ID2]):-
     nb_getval(next_id, ResolvantID),
     increment_id().
 %--------------------------------------------------------------------------------------------------
-name_factored_clause([ParentID, _, _, _], [FactoredID, "factor", ParentID, none]):-
+name_factored_clause([ParentID, _, _, _], [FactoredID, "factor", ParentID, ""]):-
     nb_getval(next_id, FactoredID),
     increment_id().
 %--------------------------------------------------------------------------------------------------
@@ -288,7 +176,7 @@ term_flatten(Atom, [Symbol | FlatArguments]):-
 get_refutation([], _, Refutation, Refutation):-
     !.
 get_refutation([[ID, _, PID1, PID2]|Tail], Added, Refutation, [ID|NewRefutation]):-
-    %get_clause_from_id(ID, Clause),
+    get_clause_from_id(ID, Clause),
     ((number(PID1), \+ member(PID1, Added)) -> (   
         get_clause_from_id(PID1, PID1Clause),
         get_name_from_clause(PID1Clause, PID1Name),
@@ -302,7 +190,8 @@ get_refutation([[ID, _, PID1, PID2]|Tail], Added, Refutation, [ID|NewRefutation]
     );(UpdatedTail2 = UpdatedTail1)
     ),
     get_refutation(UpdatedTail2, [ID | Added], Refutation, NewRefutation).
-    
+
+
 % CNF
 get_clause_from_id(ID, cnf([ID, A, B, C], D, E)):-
     cnf([ID, A, B, C], D, E),
@@ -320,20 +209,14 @@ get_name_from_clause(cnf_old(Name, _, _), Name).
 %--------------------------------------------------------------------------------------------------
 %----Test if a proof has been found
 atp_loop(ToBeUsed,Loops,Loops,'Unsatisfiable',Refutation):-
-    %writeln("In UNS loop"),
     member(cnf(FalseClauseName,[],_),ToBeUsed),
-    writeln("UNSATISFIABLE"),
     !,
     add_to_can_be_used(cnf(FalseClauseName, [], weight)),
-    %writeln("Added false clause to CBU"),
     % false clause name is empty!
     get_refutation([FalseClauseName], [], [], UnsRefutation),
-    writeln("Got refutation"),
     sort(UnsRefutation, Refutation).
     %print_list(SortedRefutation),
     %print_clauses_from_ids(SortedRefutation).
-
-
     %maplist(n_pricep, UnsRefutation, UnsIDToClause).
     %keysort(UnsIDToClause, SortedIDToClause),
     %maplist(pair_value, SortedIDToClause, Refutation),
@@ -345,37 +228,37 @@ atp_loop([],Loops,Loops,'Satisfiable',none):-
 
 %----Take first to_be_used clause and do inferences 
 atp_loop([ChosenClause|RestOfToBeUsed],LoopsSoFar,FinalLoops,SZSResult,Refutation):-
-    %write("New loop number"), writeln(LoopsSoFar),
-    %write("ChosenClause: "), writeln(ChosenClause), 
+%write('----ToBeUsed is'),write([ChosenClause|RestOfToBeUsed]),nl,
 %----Move the to_be_used clause to can_be_used
     add_to_can_be_used(ChosenClause),
 %----Do all possible inferences
     findall(NewClause,do_inference(ChosenClause,NewClause),NewClauses),
-    %writeln("Inferred clauses:"), print_list(NewClauses),
+%write("New clauses: "), write(NewClauses),nl,
 % do tautology deletion, introspective subsumption
     tautology_deletion(NewClauses, NoTautologyNewClauses),
-    introspective_subsumption(NoTautologyNewClauses, IntrospectivelySubsumedNewClauses),
+%write("No taut: "),write(NoTautologyNewClauses),nl,
+    %introspective_subsumption(NoTautologyNewClauses, IntrospectivelySubsumedNewClauses),
 % do forward subsumption on the inferred clauses
-    forward_subsumption(IntrospectivelySubsumedNewClauses, RestOfToBeUsed, ForwardSubsumedNewClauses),
+    %forward_subsumption(IntrospectivelySubsumedNewClauses, RestOfToBeUsed, ForwardSubsumedNewClauses),
 % do backward subsumption on the inferred clauses
-    %writeln("Doing backward subsumption"),
-    backward_subsumption(ForwardSubsumedNewClauses, RestOfToBeUsed, BackwardSubsumedToBeUsed),
-    %writeln("Done with backward subsumption"),
-% weigh clauses 
-    weigh_clauses(ForwardSubsumedNewClauses, WeighedNewClauses),
-    %writeln("Done weighing clauses"),
+    %backward_subsumption(ForwardSubsumedNewClauses, RestOfToBeUsed, BackwardSubsumedToBeUsed),
+%write('----The inferred clauses are'),write(NewClauses),nl,
+    %weigh_clauses(NoTautologyNewClauses, WeighedNewClauses),
+%write("No taut weighed: "),write(WeighedNewClauses),nl,
+    %weigh_clauses(NewClauses, WeighedNewClauses),
+    weigh_clauses(NoTautologyNewClauses, WeighedNewClauses),
+%    write("weighed!"),nl,
+%write('----The weighed inferred clauses are '), write(WeighedNewClauses),nl,
 %----Create new to_be_used list and loop. Breadth first search
-    %append(RestOfToBeUsed, WeighedNewClauses, NewToBeUsed),
-    append(BackwardSubsumedToBeUsed,WeighedNewClauses,NewToBeUsed),
-    %writeln("Done appending to be used"),
+    append(RestOfToBeUsed, WeighedNewClauses, NewToBeUsed),
+%    write("appended!"),nl,
+    %append(BackwardSubsumedToBeUsed,WeighedNewClauses,NewToBeUsed),
 %write('----New ToBeUsed is'), write(NewToBeUsed),nl,
     sort(3, @=<, NewToBeUsed, WeighedNewToBeUsed),
-    %writeln("Done sorting"),
 %    write("sorted!"),nl,
 %----Go round the loop. Note this should be tail recursion optimized. If it's not then buy a 
 %----better Prolog or place a cut here.
     OneMoreLoop is LoopsSoFar + 1,
-    %writeln("Calling recursion"),
     atp_loop(WeighedNewToBeUsed,OneMoreLoop,FinalLoops,SZSResult,Refutation).
 %--------------------------------------------------------------------------------------------------
 %----Store can_be_used clause in the database
@@ -387,22 +270,17 @@ add_to_can_be_used(Clause):-
 %==================================================================================================
 %--------------------------------------------------------------------------------------------------
 %----Binary resolution inference
-do_inference(cnf(ChosenName,ChosenClauseLiterals,_),cnf(ResolvantName,ResolvantLiterals,_)):-
+do_inference(cnf(ChosenName,ChosenClauseLiterals,_),cnf(ResolvantName,ResolvantLiterals,weight)):-
 %----Select literal from first parent clause
     select(SelectedLiteral,ChosenClauseLiterals,RestOfChosenClauseLiterals),
     nothing_bigger(SelectedLiteral, RestOfChosenClauseLiterals),
 %----Make opposite sign literal required for other parent
     opposite_sign_literal(SelectedLiteral,NegatedSelectedLiteral),
-    %write("NegatedSelectedLiteral: "), writeln(NegatedSelectedLiteral),
 %----Look for other parent in database
     cnf(CBUName,CBUClauseLiterals,_),
-    %write("Selected CBU Clause Literals:"), writeln(CBUClauseLiterals),
 %----Select literal of opposite sign that unifies, from the second parent
     select(NegatedSelectedLiteral,CBUClauseLiterals,RestOfCBUClauseLiterals),
-    %writeln("NegatedSelectedLiteral successfull"),
-    %writeln("Warning: not using KBO"),
-    %nothing_bigger(NegatedSelectedLiteral, RestOfCBUClauseLiterals),
-    %writeln("NothingBigger successfull"),
+    nothing_bigger(NegatedSelectedLiteral, RestOfCBUClauseLiterals),
 %----Get name of resolvant
     name_resolvant_clause(ChosenName, CBUName, ResolvantName),
 %write("ResolvantName"),write(ResolvantName),nl,
@@ -429,8 +307,7 @@ do_inference(cnf(ChosenName,ChosenClauseLiterals,_),cnf(FactoredName,FactoredLit
     remove_n(FactoredLiteralIndex+1, ChosenClauseLiterals, Sublist),
 
     % KBO need to check entire list for nothing bigger, normal only need to check later in the list
-    %writeln("Warning: not using KBO"),
-    %nothing_bigger(FactoredLiteral, FactoredLiterals),
+    nothing_bigger(FactoredLiteral, FactoredLiterals),
 
     % check if there is a copy somewhere in the sublist. If so, factor (i.e. return true)
     member(FactoredLiteral, Sublist),
@@ -540,22 +417,10 @@ introspective_subsumption([FirstClause|RestOfClauses],[FirstClause|RestOfUnsubsu
 forward_subsumption(NewClauses, ToBeUsed, ForwardSubsumedNewClauses):-
     forward_subsumption_TBU(NewClauses, ToBeUsed, ForwardSubsumedTBUNewClauses),
     forward_subsumption_CBU(ForwardSubsumedTBUNewClauses, ForwardSubsumedNewClauses).
-    
-forward_subsumption_TBU(NewClauses, ToBeUsed, ForwardSubsumedNewClauses):-
-    list_subsumption(ToBeUsed, NewClauses, ForwardSubsumedNewClauses).    
-
-forward_subsumption_CBU(ForwardSubsumedTBUNewClauses, ForwardSubsumedNewClauses):-
-    database_forward_subsumption(ForwardSubsumedTBUNewClauses, ForwardSubsumedNewClauses).
 %--------------------------------------------------------------------------------------------------
 backward_subsumption(NewClauses, ToBeUsed, BackwardSubsumedToBeUsed):-
     backward_subsumption_TBU(NewClauses, ToBeUsed, BackwardSubsumedToBeUsed),
-    backward_subsumption_CBU(NewClauses). 
-    
-backward_subsumption_TBU(NewClauses, ToBeUsed, BackwardSubsumedToBeUsed):-
-    list_subsumption(NewClauses, ToBeUsed, BackwardSubsumedToBeUsed).
-
-backward_subsumption_CBU(NewClauses):-
-    database_backward_subsumption(NewClauses).
+    backward_subsumption_CBU(NewClauses).
 %--------------------------------------------------------------------------------------------------
 
 
@@ -738,6 +603,7 @@ tptp_path_name(FileName,PathName):-
     tptp_directory(Directory),
     atomic_list_concat([Directory,'/Problems/',Domain,'/',FullFileName],PathName).
 %--------------------------------------------------------------------------------------------------
+
 increment_id():-
     nb_getval(next_id, V),
     Z is V + 1,
@@ -747,3 +613,4 @@ n_pricep(Clause, ID-Clause):-
    get_name_from_clause(Clause, [ID | _]).
 
 pair_value(_-V,V).
+
