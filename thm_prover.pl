@@ -5,7 +5,7 @@ run:-
     prove('ANLLoopProblems/NLP043-1.p',1),
     prove('ANLLoopProblems/SET777-1.p',1),
     prove('ANLLoopProblems/SWV010-1.p',1),
-    prove('ANLLoopProblems/SYN059-1.p',1),
+    prove('ANLLoopProblems/SYN059-1.p',1), */
     % EASY
     prove('ANLLoopProblems/PUZ001-1.p',60),
     prove('ANLLoopProblems/PUZ011-1.p',60),
@@ -15,28 +15,27 @@ run:-
     % MED
     prove('ANLLoopProblems/COM003-2.p',60),
     prove('ANLLoopProblems/KRS002-1.p',60),
-    % all above are currently solved with tautology + factoring + proof output
     prove('ANLLoopProblems/MGT036-3.p',60),
-    
-    prove('ANLLoopProblems/SWV292-2.p',60),
-    prove('ANLLoopProblems/SYN328-1.p',60),
+    % all above are currently solved with model resolution + tautology + factoring + subsumption + proof output
+    /* prove('ANLLoopProblems/SWV292-2.p',60),
+    prove('ANLLoopProblems/SYN328-1.p',60). */
     % HARD
-    prove('ANLLoopProblems/ALG002-1.p',5),
-    prove('ANLLoopProblems/GRP001-5.p',5),
-    prove('ANLLoopProblems/FLD001-3.p',5),
-    prove('ANLLoopProblems/LCL064-1.p',5),
-    prove('ANLLoopProblems/PUZ031-1.p',5).  */
+   /*  prove('ANLLoopProblems/ALG002-1.p',60),
+    prove('ANLLoopProblems/GRP001-5.p',60),
+    prove('ANLLoopProblems/FLD001-3.p',60),
+    prove('ANLLoopProblems/LCL064-1.p',60),
+    prove('ANLLoopProblems/PUZ031-1.p',60).  */
     % EQUALITY
-%    prove('ANLLoopProblems/COM004-1.p',60),
-   prove('ANLLoopProblems/COM004-1+Eq.p',5),
-%    prove('ANLLoopProblems/LCL171-3.p',60),
-   prove('ANLLoopProblems/LCL171-3+Eq.p',5),
-%    prove('ANLLoopProblems/PUZ020-1.p',60),
-   prove('ANLLoopProblems/PUZ020-1+Eq.p',5),
-%    prove('ANLLoopProblems/SET845-2.p',60),
-   prove('ANLLoopProblems/SET845-2+Eq.p',5),
-%    prove('ANLLoopProblems/SWV307-2.p',60),
-   prove('ANLLoopProblems/SWV307-2+Eq.p',5).
+    %prove('ANLLoopProblems/COM004-1.p',5), % can't solve
+   %prove('ANLLoopProblems/COM004-1+Eq.p',5),
+    %prove('ANLLoopProblems/LCL171-3.p',5),
+   %prove('ANLLoopProblems/LCL171-3+Eq.p',5), % can't solve
+    prove('ANLLoopProblems/PUZ020-1.p',5),
+   %prove('ANLLoopProblems/PUZ020-1+Eq.p',5),
+    prove('ANLLoopProblems/SET845-2.p',5),
+   %prove('ANLLoopProblems/SET845-2+Eq.p',5),
+    prove('ANLLoopProblems/SWV307-2.p',5).
+   %prove('ANLLoopProblems/SWV307-2+Eq.p',5).
 %==================================================================================================
 %----General ANL Loop style theorem prover. This is the overall control code, non-specific to a 
 %----particular calculus
@@ -45,6 +44,7 @@ run:-
 %Eclipse :-use_module(library(numbervars)).
 %Eclipse :-set_flag(occur_check,on).
 :-use_module(library(time)).    %%swi
+:-use_module(library(apply)).
 :-set_prolog_flag(occurs_check,true).      %%swi
 %--------------------------------------------------------------------------------------------------
 %-----Operator definitions for clauses
@@ -69,12 +69,11 @@ prove(FileName,TimeLimit):-
     write('%--------------------------------------------------------'),nl,
     write('% ANLLoop running on '),
     write(FileName),nl,
-    writeln("WARNING: Not using KBO (nothing_bigger/2 commented out)"), 
     initialise_deduction(FileName,InitialisedClauses),
     introspective_subsumption(InitialisedClauses, NonSubsumedClauses),
     % for debugging
-    sort(NonSubsumedClauses,Sorted),
-    writeln("Sorted Clauses (Subsumption done): "), print_list(Sorted),
+    %sort(NonSubsumedClauses,Sorted),
+    %writeln("Sorted Clauses (Subsumption done): "), print_list(Sorted),
     % ^^ for debugging
     initialise_model_resolution(NonSubsumedClauses, FalseClauses),
     %writeln("WARNING: Did model resolution, but not using model resolution"), 
@@ -141,16 +140,18 @@ initialise_deduction(FileName,ProblemClauses):-
 write('Problem Clauses (sorted by weight):'), write(ProblemClauses),nl.
 %--------------------------------------------------------------------------------------------------
 initialise_model_resolution(NonSubsumedClauses, FalseClauses):-
-    % get # of FALSE clauses using positive interpretation
+    /* % get # of FALSE clauses using positive interpretation
     num_false_clauses_positive_interpretation(NonSubsumedClauses, 0, PositiveCount),
     % get # of FALSE clauses using negative interpretation
     num_false_clauses_negative_interpretation(NonSubsumedClauses, 0, NegativeCount),
     % Whichever interpretation is better, add all TRUE clauses in that interpretation to the CBU
     % The remaining clauses are the FalseClauses (i.e. new TBU)
+    
     ((PositiveCount > NegativeCount) -> 
         (model_resolve_positive(NonSubsumedClauses, [], FalseClauses)) 
         ; (model_resolve_negative(NonSubsumedClauses, [], FalseClauses))
-    ).
+    ). */
+    model_resolve_negative(NonSubsumedClauses, [], FalseClauses).
 %--------------------------------------------------------------------------------------------------
 model_resolve_positive([], CurrentFalseClauses, CurrentFalseClauses):-
     !.
@@ -255,11 +256,15 @@ name_factored_clause([ParentID, _, _, _], [FactoredID, "factor", ParentID, none]
     nb_getval(next_id, FactoredID),
     increment_id().
 %--------------------------------------------------------------------------------------------------
+name_paramodulated_clause([ID1, _, _, _], [ID2, _, _, _], [ParamodulatedID, "paramodulated", ID1, ID2]):-
+    nb_getval(next_id, ParamodulatedID),
+    increment_id().
+%--------------------------------------------------------------------------------------------------
 weigh_clauses([], []).
 
 weigh_clauses([cnf(Name, Literals,_)|Tail],[cnf(Name,Literals,Weight)|WeightedTail]):-
     term_flatten(Literals, FlatList),
-    length(FlatList, Weight),
+    kbo_length(FlatList, Weight),
     weigh_clauses(Tail, WeightedTail).
 %--------------------------------------------------------------------------------------------------
 term_flatten(Var, [Var]):-
@@ -345,7 +350,6 @@ atp_loop([],Loops,Loops,'Satisfiable',none):-
 
 %----Take first to_be_used clause and do inferences 
 atp_loop([ChosenClause|RestOfToBeUsed],LoopsSoFar,FinalLoops,SZSResult,Refutation):-
-    %write("New loop number"), writeln(LoopsSoFar),
     %write("ChosenClause: "), writeln(ChosenClause), 
 %----Move the to_be_used clause to can_be_used
     add_to_can_be_used(ChosenClause),
@@ -386,19 +390,42 @@ add_to_can_be_used(Clause):-
 %----Inference rules and support
 %==================================================================================================
 %--------------------------------------------------------------------------------------------------
+
 %----Binary resolution inference
 do_inference(cnf(ChosenName,ChosenClauseLiterals,_),cnf(ResolvantName,ResolvantLiterals,_)):-
 %----Select literal from first parent clause
     select(SelectedLiteral,ChosenClauseLiterals,RestOfChosenClauseLiterals),
-    nothing_bigger(SelectedLiteral, RestOfChosenClauseLiterals),
+
+% if ChosenClauseLiterals are FALSE, then only select the largest literal
+    true_in_negative_interpretation(ChosenClauseLiterals, Result),
+    (
+        (Result == "FALSE") -> 
+        (nothing_bigger(SelectedLiteral, RestOfChosenClauseLiterals))
+        ; true
+    ),
 %----Make opposite sign literal required for other parent
     opposite_sign_literal(SelectedLiteral,NegatedSelectedLiteral),
     %write("NegatedSelectedLiteral: "), writeln(NegatedSelectedLiteral),
 %----Look for other parent in database
     cnf(CBUName,CBUClauseLiterals,_),
+
+% Only do inference on a clause if exactly one parent is FALSE
+% QUESTION: Can two FALSE clauses resolve on each other, or is it EXACTLY one false and one true clause?
+    exactly_one_clause_is_false(ChosenClauseLiterals, CBUClauseLiterals),
+
     %write("Selected CBU Clause Literals:"), writeln(CBUClauseLiterals),
 %----Select literal of opposite sign that unifies, from the second parent
     select(NegatedSelectedLiteral,CBUClauseLiterals,RestOfCBUClauseLiterals),
+
+/* % if CBUClauseLiterals are FALSE, then only valid if NegatedSelectedLiteral is the largest literal
+    true_in_negative_interpretation(CBUClauseLiterals, Result),
+    (
+        (Result == "FALSE") -> 
+        (nothing_bigger(NegatedSelectedLiteral, RestOfCBUClauseLiterals))
+        ; true
+    ), */
+
+
     %writeln("NegatedSelectedLiteral successfull"),
     %writeln("Warning: not using KBO"),
     %nothing_bigger(NegatedSelectedLiteral, RestOfCBUClauseLiterals),
@@ -425,25 +452,96 @@ do_inference(cnf(ChosenName,ChosenClauseLiterals,_),cnf(FactoredName,FactoredLit
     % get FactoredLiteral and its index 
     nth0(FactoredLiteralIndex, ChosenClauseLiterals, FactoredLiteral, FactoredLiterals),
         
-    % sublist is the list starting from the element following FactoredLiteral
-    remove_n(FactoredLiteralIndex+1, ChosenClauseLiterals, Sublist),
+    % subsest is the list starting from the element following FactoredLiteral
+    remove_n(FactoredLiteralIndex+1, ChosenClauseLiterals, subsest),
 
     % KBO need to check entire list for nothing bigger, normal only need to check later in the list
-    %writeln("Warning: not using KBO"),
-    %nothing_bigger(FactoredLiteral, FactoredLiterals),
+    nothing_bigger(FactoredLiteral, FactoredLiterals),
 
-    % check if there is a copy somewhere in the sublist. If so, factor (i.e. return true)
-    member(FactoredLiteral, Sublist),
+    % check if there is a copy somewhere in the subsest. If so, factor (i.e. return true)
+    member(FactoredLiteral, subsest),
 
     % get factored clause name
     name_factored_clause(ChosenName, FactoredName).
-    %write("\t\tChosen clause literals:"), write(ChosenClauseLiterals), nl,
-    %write("\t\tFactored to be:"), write(FactoredLiterals),nl.
 
+
+% Paramodulation, chosen clause is equality literal
+do_inference(cnf(ChosenName,ChosenClauseLiterals,_),cnf(ParamodulatedName,ParamodulatedLiterals,_)):-
+    select(SelectedLiteral,ChosenClauseLiterals,_RestOfChosenClauseLiterals),
+    positive_equality_terms(SelectedLiteral, LeftLiteral, RightLiteral),
+    (
+        bigger(LeftLiteral, RightLiteral) -> (ChosenLiteral = LeftLiteral, EqualLiteral = RightLiteral)
+        ; (ChosenLiteral = RightLiteral, EqualLiteral = LeftLiteral)
+    ),
+    cnf(CBUName,CBUClauseLiterals,_),
+    select(CBULiteral,CBUClauseLiterals,RestOfCBUClauseLiterals),
+    \+ (positive_equality_term(CBULiteral)),
+    % now need to check that ChosenLiteral is in CBULiteral
+         % e.g. check that p(a) is in l(A, y(B, p(a)))  
+    occurs_in_term(ChosenLiteral, CBULiteral),
+    % then, replace CBULiteral[ChosenLiteral] => CBULiteral[EqualLiteral]
+    replace_term(ChosenLiteral, EqualLiteral, CBULiteral, NewCBULiteral),
+    name_paramodulated_clause(ChosenName, CBUName, ParamodulatedName),
+    append([NewCBULiteral], RestOfCBUClauseLiterals, ParamodulatedLiterals).
+%--------------------------------------------------------------------------------------------------
+
+% Base case: SubTerm is exactly the same as Term.
+occurs_in_term(SubTerm, Term) :-
+    SubTerm == Term, !.
+
+% If Term is atomic and base case fails, SubTerm cannot occur in it.
+occurs_in_term(_, Term) :-
+    (atomic(Term);var(Term)), !, fail.
+
+% If Term is a compound term, check its arguments recursively.
+occurs_in_term(SubTerm, Term) :-
+    Term =.. [_ | Args], 
+    member(Arg, Args),     
+    occurs_in_term(SubTerm, Arg), !.
+%--------------------------------------------------------------------------------------------------
+
+
+% Base case: if the term is exactly X, replace it with Y.
+replace_term(X, Y, X, Y) :- !.
+
+% If the term is not X and it's an atomic value, leave it as is.
+replace_term(_, _, Term, Term) :- atomic(Term), !.
+
+% If the term is a compound term, recursively process its arguments.
+replace_term(X, Y, Term, NewTerm) :-
+    Term =.. [Functor | Args], % Break the term into its functor and arguments.
+    maplist(replace_term(X, Y), Args, NewArgs), % Process each argument.
+    NewTerm =.. [Functor | NewArgs]. % Reconstruct the term with replaced arguments.
+
+
+%--------------------------------------------------------------------------------------------------
+positive_equality_term(Term):-
+    positive_equality_terms(Term, _, _).
+
+positive_equality_terms(EqualityLiteral, LeftLiteral, RightLiteral):-
+    EqualityLiteral =.. ['=', LeftLiteral, RightLiteral],
+    !.
+
+positive_equality_terms(EqualityLiteral, LeftLiteral, RightLiteral):-
+    EqualityLiteral =.. ['~' | Literal],
+    positive_equality_terms(Literal, LeftLiteral, RightLiteral).
+%--------------------------------------------------------------------------------------------------
+exactly_one_clause_is_false(Literals1, Literals2):-
+    true_in_positive_interpretation(Literals1, Result),
+    (Result == "TRUE"),
+    true_in_negative_interpretation(Literals2, Result),
+    (Result == "TRUE"), 
+    !.
+exactly_one_clause_is_false(Literals1, Literals2):-
+    true_in_negative_interpretation(Literals1, Result),
+    (Result == "TRUE"),
+    true_in_positive_interpretation(Literals2, Result),
+    (Result == "TRUE").
 %--------------------------------------------------------------------------------------------------
 nothing_bigger(ThanThis, InThese):-
     \+ (member(TheBiggerOne, InThese),
         bigger(TheBiggerOne, ThanThis)).
+
 %--------------------------------------------------------------------------------------------------
 bigger(BigLiteral, SmallLiteral):-
     % beware, literals can be positive or negative 
@@ -452,19 +550,67 @@ bigger(BigLiteral, SmallLiteral):-
     % @>= or @<=
     no_negation(BigLiteral, BigLiteralClean),
     no_negation(SmallLiteral, SmallLiteralClean),
-    compare(<, BigLiteralClean, SmallLiteralClean).
-    
+    % TODO: Add KBO compare instead of compare
+    kbo_bigger(BigLiteralClean, SmallLiteralClean).
+    %compare(<, BigLiteralClean, SmallLiteralClean).
 %--------------------------------------------------------------------------------------------------
 no_negation(~A, A):-!.
 no_negation(A, A).
 %--------------------------------------------------------------------------------------------------
+kbo_bigger(BigLiteral, SmallLiteral):-
+    kbo_bigger_variable_check(BigLiteral, SmallLiteral),
+    kbo_weight(BigLiteral, BigLiteralWeight),
+    kbo_weight(SmallLiteral, SmallLiteralWeight),
+    (
+        (BigLiteralWeight > SmallLiteralWeight)
+        ; (BigLiteralWeight == SmallLiteralWeight, compare(<, BigLiteral, SmallLiteral))   % using < bc we want a to be gt b
+    ).
+%--------------------------------------------------------------------------------------------------
+kbo_bigger_variable_check(BigLiteral, SmallLiteral):-
+    term_flatten(BigLiteral, FlatBigLiteral),
+    term_flatten(SmallLiteral, FlatSmallLiteral),
+    only_vars(FlatBigLiteral, BigLiteralVars),
+    only_vars(FlatSmallLiteral, SmallLiteralVars),
+    % for each member in FlatSmallLiteral, if var, ensure in FlatBigLiteral
+    small_all_in_big(SmallLiteralVars, BigLiteralVars).
+%--------------------------------------------------------------------------------------------------
+kbo_weight(Literal, Weight):-
+    term_flatten(Literal, FlatLiteral),
+    kbo_length(FlatLiteral, Weight).
+%--------------------------------------------------------------------------------------------------
+kbo_length(List, Length):- kbo_length(List, 0, Length).
+kbo_length([], Length, Length):-
+    !.
+kbo_length([Head | Tail], CurrentLength, Length):-
+    (var(Head) -> (CL is CurrentLength + 1)
+    ; (CL is CurrentLength + 2)
+    ),
+    kbo_length(Tail, CL, Length).
+%--------------------------------------------------------------------------------------------------
+only_vars([], []):-
+    !.
 
+only_vars([Head|Tail], [Head|Vars]) :-
+    var(Head), % Check if H is a variable
+    !,
+    only_vars(Tail, Vars).
+
+only_vars([_|Tail], Vars) :-
+    only_vars(Tail, Vars).
+%--------------------------------------------------------------------------------------------------
+small_all_in_big([],_):-
+    !.
+small_all_in_big([Head|Tail],BigList):- 
+    select(Item, BigList, RestOfBigList), Item == Head,
+    !,
+    small_all_in_big(Tail,RestOfBigList).
+%--------------------------------------------------------------------------------------------------
 remove_n(0, List, List):-
     !.
 
-remove_n(N, [_OgHead|OgTail], Sublist):-
+remove_n(N, [_OgHead|OgTail], subsest):-
     N1 is N - 1,
-    remove_n(N1, OgTail, Sublist).
+    remove_n(N1, OgTail, subsest).
 %--------------------------------------------------------------------------------------------------
 %-----Make a literal of opposite sign
 opposite_sign_literal(~ Atom,Atom):-
