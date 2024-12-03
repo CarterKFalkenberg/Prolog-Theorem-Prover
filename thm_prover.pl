@@ -1,11 +1,11 @@
 run:-
     %consult('ANLLoopAnswer'),
     % SAT
-    /* prove('ANLLoopProblems/KRS005-1.p',1),
+    prove('ANLLoopProblems/KRS005-1.p',1),
     prove('ANLLoopProblems/NLP043-1.p',1),
     prove('ANLLoopProblems/SET777-1.p',1),
     prove('ANLLoopProblems/SWV010-1.p',1),
-    prove('ANLLoopProblems/SYN059-1.p',1), */
+    prove('ANLLoopProblems/SYN059-1.p',1),
     % EASY
     prove('ANLLoopProblems/PUZ001-1.p',60),
     prove('ANLLoopProblems/PUZ011-1.p',60),
@@ -16,26 +16,25 @@ run:-
     prove('ANLLoopProblems/COM003-2.p',60),
     prove('ANLLoopProblems/KRS002-1.p',60),
     prove('ANLLoopProblems/MGT036-3.p',60),
-    % all above are currently solved with model resolution + tautology + factoring + subsumption + proof output
-    /* prove('ANLLoopProblems/SWV292-2.p',60),
-    prove('ANLLoopProblems/SYN328-1.p',60). */
+    prove('ANLLoopProblems/SWV292-2.p',5),
+    prove('ANLLoopProblems/SYN328-1.p',5),
     % HARD
-   /*  prove('ANLLoopProblems/ALG002-1.p',60),
-    prove('ANLLoopProblems/GRP001-5.p',60),
-    prove('ANLLoopProblems/FLD001-3.p',60),
-    prove('ANLLoopProblems/LCL064-1.p',60),
-    prove('ANLLoopProblems/PUZ031-1.p',60).  */
+    prove('ANLLoopProblems/ALG002-1.p',5),
+    prove('ANLLoopProblems/GRP001-5.p',5),
+    prove('ANLLoopProblems/FLD001-3.p',5),
+    prove('ANLLoopProblems/LCL064-1.p',5),
+    prove('ANLLoopProblems/PUZ031-1.p',5). 
     % EQUALITY
-    %prove('ANLLoopProblems/COM004-1.p',5), % can't solve
-   %prove('ANLLoopProblems/COM004-1+Eq.p',5),
+    %prove('ANLLoopProblems/COM004-1.p',5), 
+    prove('ANLLoopProblems/COM004-1+Eq.p',5),
     %prove('ANLLoopProblems/LCL171-3.p',5),
-   %prove('ANLLoopProblems/LCL171-3+Eq.p',5), % can't solve
-    prove('ANLLoopProblems/PUZ020-1.p',5),
-   %prove('ANLLoopProblems/PUZ020-1+Eq.p',5),
-    prove('ANLLoopProblems/SET845-2.p',5),
-   %prove('ANLLoopProblems/SET845-2+Eq.p',5),
-    prove('ANLLoopProblems/SWV307-2.p',5).
-   %prove('ANLLoopProblems/SWV307-2+Eq.p',5).
+    prove('ANLLoopProblems/LCL171-3+Eq.p',5), 
+    %prove('ANLLoopProblems/PUZ020-1.p',5),
+    prove('ANLLoopProblems/PUZ020-1+Eq.p',5),
+    %prove('ANLLoopProblems/SET845-2.p',5),
+    prove('ANLLoopProblems/SET845-2+Eq.p',5),
+    %prove('ANLLoopProblems/SWV307-2.p',5).
+    prove('ANLLoopProblems/SWV307-2+Eq.p',5).
 %==================================================================================================
 %----General ANL Loop style theorem prover. This is the overall control code, non-specific to a 
 %----particular calculus
@@ -759,9 +758,9 @@ database_backward_subsumption(_).
 %----Others are two clauses.
 cnf_subsumed(cnf(_,SubsumedLiterals,_),cnf(_,SubsumingLiterals,_)):-
 %----Enforce theta rule for length
-%    length(SubsumedLiterals,SubsumedLength),
-%    length(SubsumingLiterals,SubsumingLength),
-%    SubsumedLength >= SubsumingLength,
+     length(SubsumedLiterals,SubsumedLength),
+     length(SubsumingLiterals,SubsumingLength),
+     SubsumedLength >= SubsumingLength,
 %----Put in a verify to avoid instantiation
     \+ \+ (
         numbervars(SubsumedLiterals,0,_),
